@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CPA / Sub2API 转换工具</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Local WebUI Converter</p>
+        <h1>CPA / Codex 与 Sub2API 互转工具</h1>
+        <p class="hero-copy">
+          支持粘贴 JSON、上传文件、自动识别格式，并在浏览器本地完成双向转换。
+        </p>
+      </section>
+
+      <section class="panel panel-grid">
+        <div class="input-card">
+          <div class="section-head">
+            <h2>输入</h2>
+            <button id="loadExampleButton" class="ghost-button" type="button">加载示例</button>
+          </div>
+
+          <label class="upload-zone" for="fileInput">
+            <input id="fileInput" type="file" accept=".json,application/json" multiple hidden />
+            <span class="upload-title">上传 JSON 文件</span>
+            <span class="upload-subtitle">
+              单文件可直接互转；多选文件时支持多个 CPA / Codex 批量转 Sub2API
+            </span>
+          </label>
+
+          <div id="fileSummary" class="upload-note">
+            未选择文件。文本输入与文件输入二选一，上传文件后会优先按文件处理。
+          </div>
+
+          <div class="textarea-wrap">
+            <label for="sourceInput">或直接粘贴 JSON</label>
+            <textarea
+              id="sourceInput"
+              spellcheck="false"
+              placeholder="把 JSON 内容粘贴到这里。也支持粘贴一个由多个 CPA 对象组成的 JSON 数组。"
+            ></textarea>
+          </div>
+
+          <div class="actions">
+            <button id="detectButton" type="button">识别格式</button>
+            <button id="convertButton" type="button" class="primary-button">执行转换</button>
+            <button id="clearButton" type="button" class="ghost-button">清空</button>
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-box">
+              <span class="meta-label">识别结果</span>
+              <strong id="detectedType">未识别</strong>
+            </div>
+            <div class="meta-box">
+              <span class="meta-label">目标格式</span>
+              <select id="targetFormat">
+                <option value="sub2api">转换为 Sub2API</option>
+                <option value="cpa">转换为 CPA / Codex</option>
+              </select>
+            </div>
+            <div class="meta-box">
+              <span class="meta-label">多个 CPA 转 Sub2API</span>
+              <select id="cpaBatchMode">
+                <option value="merge">合并成 1 个 Sub2API</option>
+                <option value="split">分别导出多个 Sub2API</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="output-card">
+          <div class="section-head">
+            <h2>输出</h2>
+            <button id="copyButton" type="button" class="ghost-button">复制结果</button>
+          </div>
+
+          <div class="summary" id="summaryBox">
+            <span>等待输入数据</span>
+          </div>
+
+          <div class="download-actions">
+            <button id="downloadButton" type="button" disabled>下载结果</button>
+            <button id="downloadAllButton" type="button" disabled>批量下载全部</button>
+          </div>
+
+          <div class="textarea-wrap">
+            <label for="resultOutput">转换结果</label>
+            <textarea id="resultOutput" spellcheck="false" readonly></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel notes">
+        <h2>转换规则</h2>
+        <ul>
+          <li>CPA / Codex 单账号文件会转换为一个 Sub2API 账号。</li>
+          <li>多个 CPA / Codex 文件支持合并成 1 个 Sub2API，或分别导出多个 Sub2API。</li>
+          <li>Sub2API 转 CPA 时，会提取 `accounts` 中 `platform = openai` 的账号。</li>
+          <li>浏览器本地处理，不上传到服务器。</li>
+          <li>如果 `client_id`、`email`、`expires_at` 等字段缺失，会优先从 token 解析补全。</li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
