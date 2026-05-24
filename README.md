@@ -1,47 +1,140 @@
 # CPA / Sub2API WebUI
 
-本工具用于在浏览器本地完成 `CPA / Codex JSON` 与 `Sub2API 导出 JSON` 的双向转换。
+一个纯前端、本地处理的转换工具，用于在浏览器中完成以下互转：
 
-## 启动方式
+- `CPA / Codex JSON -> Sub2API JSON`
+- `Sub2API JSON -> CPA / Codex JSON`
+- `多个 CPA / Codex JSON -> 1 个 Sub2API JSON`
+- `多个 CPA / Codex JSON -> 多个 Sub2API JSON`
 
-Windows 下任选一个：
-
-```powershell
-.\start-webui.ps1
-```
-
-```cmd
-start-webui.cmd
-```
-
-启动后会自动打开：
-
-```text
-http://127.0.0.1:4173
-```
+所有数据都在浏览器本地处理，不上传到服务器。
 
 ## 功能
 
 - 粘贴 JSON 直接识别
 - 上传 `.json` 文件处理
-- `CPA / Codex -> Sub2API`
-- `多个 CPA / Codex -> 1 个 Sub2API`
-- `多个 CPA / Codex -> 多个 Sub2API`
-- `Sub2API -> CPA / Codex`
-- Sub2API 多账号时支持批量下载多个 CPA 文件
-- 所有处理都在本地浏览器完成
+- 支持单个文件互转
+- 支持多个 `CPA / Codex` 文件批量转 `Sub2API`
+- 支持 `Sub2API` 多账号批量导出多个 `CPA / Codex`
+- 支持 Windows 本地启动
+- 支持 Docker 部署到 Linux 服务器
 
-## 文件说明
+## 项目结构
 
 - `index.html`: 页面结构
 - `styles.css`: 页面样式
 - `converter.js`: 转换规则
 - `app.js`: 页面交互逻辑
 - `serve.mjs`: 本地静态服务器
+- `start-webui.ps1`: Windows PowerShell 启动脚本
+- `start-webui.cmd`: Windows CMD 启动脚本
+- `Dockerfile`: Docker 镜像构建文件
+
+## Windows 使用方法
+
+适合本机直接打开使用，保留现有桌面端体验。
+
+### 方式一：PowerShell
+
+```powershell
+.\start-webui.ps1
+```
+
+### 方式二：CMD
+
+```cmd
+start-webui.cmd
+```
+
+启动后浏览器会自动打开：
+
+```text
+http://127.0.0.1:4173
+```
+
+### Windows 手动启动
+
+如果你不想用脚本，也可以直接运行：
+
+```powershell
+$env:PORT = "4173"
+node .\serve.mjs
+```
+
+## Docker 部署方法
+
+适合部署到 Linux 服务器。
+
+### 1. 构建镜像
+
+```bash
+docker build -t cpa-sub2api:latest .
+```
+
+### 2. 启动容器
+
+```bash
+docker run -d \
+  --name cpa-sub2api \
+  -p 4173:4173 \
+  cpa-sub2api:latest
+```
+
+启动后访问：
+
+```text
+http://服务器IP:4173
+```
+
+### 3. 停止和删除容器
+
+```bash
+docker stop cpa-sub2api
+docker rm cpa-sub2api
+```
+
+### 4. 查看日志
+
+```bash
+docker logs -f cpa-sub2api
+```
+
+## 使用说明
+
+### 单个文件转换
+
+1. 上传一个 JSON 文件，或直接粘贴 JSON。
+2. 点击“识别格式”。
+3. 选择目标格式。
+4. 点击“执行转换”。
+5. 下载结果。
+
+### 多个 CPA 批量转换
+
+1. 一次选择多个 `CPA / Codex JSON` 文件。
+2. 目标格式选择 `Sub2API`。
+3. 选择批量模式：
+   - `合并成 1 个 Sub2API`
+   - `分别导出多个 Sub2API`
+4. 点击“执行转换”。
+5. 下载结果。
+
+### Sub2API 批量导出 CPA
+
+1. 上传一个 `Sub2API JSON` 文件。
+2. 选择目标格式 `CPA / Codex`。
+3. 点击“执行转换”。
+4. 如果有多个账号，可以使用“批量下载全部”。
 
 ## 当前规则
 
 - `CPA / Codex` 单对象可直接互转
 - 粘贴 `CPA` 数组或一次上传多个 `CPA` 文件时，可选择合并或拆分导出 `Sub2API`
 - `Sub2API` 输入会提取 `accounts` 中 `platform = openai` 的账号
-- 缺失的 `email`、`expires_at` 等字段会优先从 token 里推断
+- 缺失的 `email`、`expires_at` 等字段会优先从 token 中推断
+
+## 安全说明
+
+- 本工具不会主动上传你的 JSON 数据
+- 建议仅在你信任的本机或服务器环境中使用
+- 推送代码仓库前请不要把真实账号 JSON 示例文件放进项目目录

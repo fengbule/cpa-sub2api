@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 
 const port = Number(process.env.PORT || 4173);
+const host = process.env.HOST || "127.0.0.1";
 const root = process.cwd();
 
 const contentTypes = {
@@ -55,6 +56,6 @@ createServer((request, response) => {
   }
 
   sendFile(response, absolutePath);
-}).listen(port, "127.0.0.1", () => {
-  console.log(`Static server running at http://127.0.0.1:${port}`);
+}).listen(port, host, () => {
+  console.log(`Static server running at http://${host}:${port}`);
 });
