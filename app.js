@@ -7,6 +7,7 @@ import {
   sub2ApiToCpaList,
   summarizeAccounts,
 } from "./converter.js";
+import { createZipBlob, extractJsonFilesFromZip } from "./zip.js";
 
 const EXAMPLE_CPA = `{
   "access_token": "your_access_token",
@@ -43,6 +44,7 @@ const elements = {
   loadExampleButton: document.getElementById("loadExampleButton"),
   resultOutput: document.getElementById("resultOutput"),
   sourceInput: document.getElementById("sourceInput"),
+  shutdownButton: document.getElementById("shutdownButton"),
   summaryBox: document.getElementById("summaryBox"),
   targetFormat: document.getElementById("targetFormat"),
 };
@@ -52,7 +54,7 @@ function pretty(value) {
 }
 
 function stripJsonExtension(name) {
-  return String(name || "").replace(/\.json$/i, "");
+  return String(name || "").replace(/\.(json|cpa)$/i, "");
 }
 
 function resolveAccountName(cpa, fallbackName, index) {
@@ -69,7 +71,7 @@ function setDownloadButtons({
   currentEnabled = false,
   allEnabled = false,
   currentLabel = "下载结果",
-  allLabel = "批量下载全部",
+  allLabel = "下载 ZIP 压缩包",
 } = {}) {
   elements.downloadButton.disabled = !currentEnabled;
   elements.downloadAllButton.disabled = !allEnabled;
@@ -97,7 +99,7 @@ function updateDetectedType(type) {
 function updateFileSummary() {
   if (!state.uploadedItems.length) {
     elements.fileSummary.textContent =
-      "未选择文件。文本输入与文件输入二选一，上传文件后会优先按文件处理。";
+      "未选择文件。文本输入与文件输入二选一，支持上传 .json、.cpa 或包含它们的 .zip。";
     return;
   }
 
@@ -106,7 +108,11 @@ function updateFileSummary() {
     return;
   }
 
-  elements.fileSummary.textContent = `已选择 ${state.uploadedItems.length} 个文件，将按批量模式处理。`;
+  const archiveCount = new Set(
+    state.uploadedItems.map((item) => item.archiveName).filter(Boolean)
+  ).size;
+  const archiveText = archiveCount ? `，来自 ${archiveCount} 个压缩包` : "";
+  elements.fileSummary.textContent = `已选择 ${state.uploadedItems.length} 个文件${archiveText}，将按批量模式处理。`;
 }
 
 function resetOutputs() {
@@ -185,6 +191,10 @@ function buildCpaRecords(context) {
 
 function downloadBlob(filename, text) {
   const blob = new Blob([text], { type: "application/json;charset=utf-8" });
+  downloadBlobObject(filename, blob);
+}
+
+function downloadBlobObject(filename, blob) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -305,8 +315,8 @@ function convertNow() {
         downloads,
         downloads.length === 1
           ? "已将 1 个 CPA / Codex 输入转换为 1 个 Sub2API 文件。"
-          : `已生成 ${downloads.length} 个 Sub2API 文件，当前预览第 1 个，可批量下载全部。`,
-        "批量下载全部 Sub2API"
+          : `已生成 ${downloads.length} 个 Sub2API 文件，当前预览第 1 个，可打包下载 ZIP。`,
+        "下载 Sub2API ZIP"
       );
       return;
     }
@@ -328,8 +338,8 @@ function convertNow() {
         downloads,
         downloads.length === 1
           ? "已将 Sub2API 文件转换为 1 个 CPA / Codex 文件。"
-          : `已识别 ${downloads.length} 个可转换账号，当前预览第 1 个，可批量下载全部。`,
-        "批量下载全部 CPA"
+          : `已识别 ${downloads.length} 个可转换账号，当前预览第 1 个，可打包下载 ZIP。`,
+        "下载 CPA ZIP"
       );
       return;
     }
@@ -372,15 +382,20 @@ function downloadCurrent() {
   downloadBlob(state.downloadPayload.filename, state.downloadPayload.text);
 }
 
-function downloadAll() {
+async function downloadAll() {
   if (!state.downloadList.length) {
     setSummary("当前没有可批量下载的结果。", true);
     return;
   }
 
-  state.downloadList.forEach((item) => {
-    downloadBlob(item.filename, item.text);
-  });
+  try {
+    const blob = await createZipBlob(state.downloadList);
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    downloadBlobObject(`cpa-sub2api-output-${stamp}.zip`, blob);
+    setSummary(`已将 ${state.downloadList.length} 个结果打包为 ZIP 压缩包。`);
+  } catch (error) {
+    setSummary(error.message, true);
+  }
 }
 
 function clearAll() {
@@ -402,24 +417,36 @@ async function handleFileUpload(event) {
   resetOutputs();
 
   try {
-    const items = await Promise.all(
-      files.map(async (file) => {
-        const text = await file.text();
-        const data = parseJson(text);
-        const type = detectFormat(data);
+    const extractedFiles = [];
 
-        if (type === "unknown") {
-          throw new Error(`${file.name} 不是支持的 JSON 格式。`);
-        }
-
-        return {
+    for (const file of files) {
+      if (/\.zip$/i.test(file.name) || file.type === "application/zip") {
+        extractedFiles.push(...(await extractJsonFilesFromZip(file)));
+      } else {
+        extractedFiles.push({
           name: file.name,
-          text,
-          data,
-          type,
-        };
-      })
-    );
+          text: await file.text(),
+        });
+      }
+    }
+
+    const items = extractedFiles.map((file) => {
+      const data = parseJson(file.text);
+      const type = detectFormat(data);
+
+      if (type === "unknown") {
+        const archiveText = file.archiveName ? `（来自 ${file.archiveName}）` : "";
+        throw new Error(`${file.name}${archiveText} 不是支持的 JSON 格式。`);
+      }
+
+      return {
+        name: file.name,
+        text: file.text,
+        data,
+        type,
+        archiveName: file.archiveName,
+      };
+    });
 
     state.uploadedItems = items;
     elements.sourceInput.value = items.length === 1 ? items[0].text : "";
@@ -452,6 +479,24 @@ function loadExample() {
   setSummary("已载入示例数据，可直接点“识别格式”或“执行转换”。");
 }
 
+async function shutdownApp() {
+  if (!window.confirm("确定要关闭本地转换工具吗？")) {
+    return;
+  }
+
+  elements.shutdownButton.disabled = true;
+  setSummary("正在关闭本地服务...");
+
+  try {
+    await fetch("/__shutdown", { method: "POST", keepalive: true });
+    setSummary("本地服务已关闭。可以关闭这个页面。");
+    setTimeout(() => window.close(), 400);
+  } catch {
+    setSummary("已发送关闭请求。如果页面稍后无法继续访问，说明本地服务已停止。");
+    setTimeout(() => window.close(), 400);
+  }
+}
+
 function initEvents() {
   elements.detectButton.addEventListener("click", detectOnly);
   elements.convertButton.addEventListener("click", convertNow);
@@ -461,6 +506,7 @@ function initEvents() {
   elements.downloadAllButton.addEventListener("click", downloadAll);
   elements.fileInput.addEventListener("change", handleFileUpload);
   elements.loadExampleButton.addEventListener("click", loadExample);
+  elements.shutdownButton.addEventListener("click", shutdownApp);
   elements.sourceInput.addEventListener("input", handleSourceInput);
   elements.targetFormat.addEventListener("change", syncBatchModeControl);
   syncBatchModeControl();

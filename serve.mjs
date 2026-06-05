@@ -27,8 +27,29 @@ function sendFile(response, filePath) {
   createReadStream(filePath).pipe(response);
 }
 
-createServer((request, response) => {
+function isLocalRequest(request) {
+  const address = request.socket.remoteAddress;
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+}
+
+const server = createServer((request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
+
+  if (url.pathname === "/__shutdown") {
+    if (request.method !== "POST" || !isLocalRequest(request)) {
+      response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("Forbidden");
+      return;
+    }
+
+    response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+    response.end("Shutting down");
+    setTimeout(() => {
+      server.close(() => process.exit(0));
+    }, 100);
+    return;
+  }
+
   const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
   const safePath = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
   const absolutePath = resolve(join(root, `.${safePath}`));
@@ -56,6 +77,8 @@ createServer((request, response) => {
   }
 
   sendFile(response, absolutePath);
-}).listen(port, host, () => {
+});
+
+server.listen(port, host, () => {
   console.log(`Static server running at http://${host}:${port}`);
 });
